@@ -16,6 +16,21 @@ from tools.vision.fc_bga_yolo.public_external_evaluation import (
     write_public_evaluation_report,
 )
 
+# ultralytics is an optional heavy dependency used *only* by grouped_bootstrap_map
+# (imported lazily inside that function). The offline test suite must not fail when
+# it is absent, so only the grouped-bootstrap cases are skipped — not the whole file.
+try:
+    import ultralytics  # noqa: F401
+
+    _HAS_ULTRALYTICS = True
+except ModuleNotFoundError:
+    _HAS_ULTRALYTICS = False
+
+_requires_ultralytics = pytest.mark.skipif(
+    not _HAS_ULTRALYTICS,
+    reason="ultralytics (optional heavy dep) not installed; grouped bootstrap skipped offline",
+)
+
 
 def test_empty_classes_are_null_and_excluded_from_observed_map() -> None:
     report = build_observed_class_report(
@@ -59,6 +74,7 @@ def _validation_stats(groups: Mapping[str, int]) -> tuple[ImageValidationStats, 
     return tuple(result)
 
 
+@_requires_ultralytics
 def test_grouped_bootstrap_moves_all_group_images_as_one_block() -> None:
     groups = {"g1": 5, "g2": 2, "g3": 1}
     groups.update({f"g{index}": 1 for index in range(4, 31)})
@@ -75,6 +91,7 @@ def test_grouped_bootstrap_moves_all_group_images_as_one_block() -> None:
             assert sampled_count % original_count == 0
 
 
+@_requires_ultralytics
 def test_grouped_bootstrap_requires_thirty_independent_groups() -> None:
     with pytest.raises(ValueError, match="BOOTSTRAP_GROUPS_BELOW_30"):
         grouped_bootstrap_map(_validation_stats({"g1": 2, "g2": 1}))
