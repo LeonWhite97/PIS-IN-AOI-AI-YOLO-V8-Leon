@@ -14,7 +14,7 @@
 PYTHON ?= python
 LOOP := bash tools/vision/fc_bga_yolo/review-loop.sh
 
-.PHONY: review-artifacts review-progress review-status apply b0-check b0-publish review test
+.PHONY: review-artifacts review-progress review-status apply quarantine b0-check b0-publish review test
 
 review-artifacts:
 	$(LOOP) artifacts
@@ -30,6 +30,12 @@ review-status:
 ##   make apply LABEL_DIR=~/exports CLASS_MAP=~/map.json DRY=1
 apply:
 	$(LOOP) apply --label-dir $(LABEL_DIR) $(if $(CLASS_MAP),--class-map $(CLASS_MAP)) $(if $(DRY),--dry-run)
+
+## Quarantine unjudgeable samples. Pass sample ids (and optional reason):
+##   make quarantine IDS="public-abc public-def"
+##   make quarantine IDS="public-abc" REASON=UNREADABLE DRY=1
+quarantine:
+	$(LOOP) quarantine --ids $(IDS) $(if $(REASON),--reason $(REASON)) $(if $(DRY),--dry-run)
 
 b0-check:
 	$(LOOP) b0-check

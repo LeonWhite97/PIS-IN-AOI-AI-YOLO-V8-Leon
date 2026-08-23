@@ -26,6 +26,7 @@ data/external/fc_bga_public_external/review/
 !data/external/fc_bga_public_external/review/
 data/external/fc_bga_public_external/review/*
 !data/external/fc_bga_public_external/review/candidates.jsonl
+!data/external/fc_bga_public_external/review/predefined_classes.txt
 !data/external/fc_bga_public_external/review/images/
 data/external/fc_bga_public_external/review/images/*
 !data/external/fc_bga_public_external/review/images/*.jpg
@@ -37,6 +38,7 @@ data/vision/fc_bga_defects/**/images/*
 data/vision/fc_bga_defects/**/labels/*
 !data/vision/fc_bga_defects/**/images/.gitkeep
 !data/vision/fc_bga_defects/**/labels/.gitkeep
+data/to_annotate/
 tools/vision/fc_bga_yolo/weights/
 tools/vision/fc_bga_yolo/runs/
 *.pt

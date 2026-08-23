@@ -10,6 +10,8 @@
 #   status      same as progress but machine-readable JSON
 #   apply       apply exported YOLO label files into candidates.jsonl
 #               (args: --label-dir <dir> [--class-map map.json] [--dry-run])
+#   quarantine  mark unreadable / defect-unclear candidates as quarantined
+#               (args: --ids <sample_id>... [--reason DEFECT_UNCLEAR] [--dry-run])
 #   b0-check    dry-run the B0 gate checklist (exit 1 while blocked — expected)
 #   b0-publish  materialize versions/public-external-v0.1/ once the gate is ready
 #   all         artifacts -> status -> b0-check  (the full refresh + check loop)
@@ -33,6 +35,7 @@ shift || true
 run_artifacts() { "$PYTHON" "$TOOL/build_review_artifacts.py" "$@"; }
 run_progress()  { "$PYTHON" "$TOOL/review_progress.py" "$@"; }
 run_apply()     { "$PYTHON" "$TOOL/apply_review_labels.py" "$@"; }
+run_quarantine() { "$PYTHON" "$TOOL/quarantine_candidates.py" "$@"; }
 run_b0()        { "$PYTHON" "$TOOL/build_b0_version.py" "$@"; }
 
 case "$cmd" in
@@ -47,6 +50,9 @@ case "$cmd" in
     ;;
   apply)
     run_apply "$@"
+    ;;
+  quarantine)
+    run_quarantine "$@"
     ;;
   b0-check)
     run_b0

@@ -155,13 +155,48 @@ B0 门控不仅数图像数，还会校验每个 accepted 样本的 YOLO 标签�
 
 - 良品（`accepted_classes = ()`）不需要标签文件，`label_path` 留 `null` 即可。
 
-### 4.2 推荐标注工具
+### 4.2 推荐标注工具与就绪工作区
 
-- **LabelImg**（本地轻量）：`pip install labelImg`；把上表 7 个类名按顺序写入 `classes.txt`，打开 `review/images/`，保存格式选 YOLO，输出目录设为 `review/labels/`。
-- **makesense.ai**（零安装网页）：上传 `review/images/` 里的图，按顺序添加 7 个标签，导出 YOLO txt 后放入 `review/labels/`。
-- **Label Studio**（功能最全）：`pip install label-studio`，建 Object Detection 项目，导出选 YOLO。
+**就绪工作区（推荐）：`data/to_annotate/`**
+- 已放入全部 110 张候选图（文件名 = `sample_id`，与 `candidates.jsonl` 逐一对应）；
+- 已放置 `predefined_classes.txt`（7 类按 §4.1 合同顺序）。LabelImg 启动时会从
+  **当前工作目录**读取该文件，因此请**在 `data/to_annotate/` 目录内启动 LabelImg**
+  （或在启动处放一份同文件），下拉框即按序出现 7 类，`class_id` 0-6 与 §4.1 表严格一致。
 
-任选其一；关键是**类别顺序严格一致**、文件名与 `sample_id` 对应。
+- **LabelImg**（本地轻量）：`pip install labelImg`；打开 `data/to_annotate/`，
+  工具栏把 **PascalVOC 切换为 YOLO**（关键，否则导出 XML），逐张画框 → 选类 → Ctrl+S；
+  `.txt` 与图像同目录生成在 `data/to_annotate/` 下。
+- **makesense.ai**（零安装网页）：上传 `data/to_annotate/` 里的图，按 §4.1 顺序添加
+  7 个标签，导出 YOLO txt 到任意目录，交给下方 apply 落盘。
+- **Label Studio**（功能最全）：`pip install label-studio`，建 Object Detection 项目，
+  导出选 YOLO。
+
+任选其一；关键是**类别顺序严格一致**、文件名与 `sample_id` 对应、
+保存格式是 **YOLO 而非 PascalVOC XML**。
+
+**落盘**（人工标完后由脚本执行；自动校验每个框、推导 `accepted_classes`、写
+`review_status=accepted` + `label_path`，并把标签复制到 git 跟踪的 `review/labels/`）：
+
+```bash
+make apply LABEL_DIR=data/to_annotate
+# 等价于：
+# python tools/vision/fc_bga_yolo/apply_review_labels.py --label-dir data/to_annotate
+```
+
+先预览零副作用的结果：`make apply LABEL_DIR=data/to_annotate DRY=1`
+
+- **良品（无缺陷）**：保存空 `.txt`（0 字节）即可——校验通过、`accepted_classes=()`，
+  可作负样本入库。
+- **无法判定的图**：不要保存标签文件，把 `sample_id` 交给 AI 执行隔离落盘：
+
+```bash
+# 预览零副作用
+make quarantine IDS="public-xxxxxxxxxxxxxxxx public-yyyyyyyyyyyyyyyy" DRY=1
+# 正式隔离（默认 DEFECT_UNCLEAR，可换 UNREADABLE / LICENSE_AMBIGUOUS）
+make quarantine IDS="public-xxxxxxxxxxxxxxxx"
+# 等价于：
+# python tools/vision/fc_bga_yolo/quarantine_candidates.py --ids public-xxxxxxxxxxxxxxxx
+```
 
 ---
 
@@ -201,6 +236,21 @@ python tools/vision/fc_bga_yolo/review_progress.py
 
 # 机器可读（CI / 后续脚本消费）
 python tools/vision/fc_bga_yolo/review_progress.py --json
+
+# 标注落盘（标完一批后执行；--dry-run 先预览）
+python tools/vision/fc_bga_yolo/apply_review_labels.py --label-dir data/to_annotate --dry-run
+python tools/vision/fc_bga_yolo/apply_review_labels.py --label-dir data/to_annotate
+
+# 隔离无法判定的图（拿不准的 sample_id）
+python tools/vision/fc_bga_yolo/quarantine_candidates.py --ids public-xxxxxxxx --dry-run
+python tools/vision/fc_bga_yolo/quarantine_candidates.py --ids public-xxxxxxxx --reason DEFECT_UNCLEAR
+
+# B0 门控检查 / 实体化版本
+python tools/vision/fc_bga_yolo/build_b0_version.py            # 检查清单（blocked 时退出码 1）
+python tools/vision/fc_bga_yolo/build_b0_version.py --publish  # 门控通过后生成 versions/public-external-v0.1/
+
+# 或全部走单命令入口
+bash tools/vision/fc_bga_yolo/review-loop.sh all
 
 # 打开联系表（审查时对照）
 # 直接用浏览器打开 data/external/fc_bga_public_external/review/contact_sheet.html
