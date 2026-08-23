@@ -26,6 +26,7 @@ from tools.vision.fc_bga_yolo.build_review_artifacts import (
     load_candidates,
     render_html,
 )
+from tools.vision.fc_bga_yolo.quarantine_candidates import quarantine_records
 from tools.vision.fc_bga_yolo.review_progress import summarize_review
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -161,6 +162,76 @@ def test_apply_labels_class_map_translation(tmp_path: Path) -> None:
     ]
     rec = next(r for r in recs if r["sample_id"] == "sample-000")
     assert rec["accepted_classes"] == ["BALL_BRIDGE"]
+
+
+def test_quarantine_dry_run_has_no_side_effects(tmp_path: Path) -> None:
+    review, sources = _build_review_tree(tmp_path, 3)
+    before = (review / "candidates.jsonl").read_bytes()
+
+    rc = quarantine_records(
+        review / "candidates.jsonl", sources, ("sample-000",), "DEFECT_UNCLEAR",
+        dry_run=True,
+    )
+
+    assert (review / "candidates.jsonl").read_bytes() == before  # manifest untouched
+    assert not (review / "candidates.jsonl.bak").exists()  # no backup
+    assert rc == 0
+
+
+def test_quarantine_demotes_and_passes_audit(tmp_path: Path) -> None:
+    from tools.vision.fc_bga_yolo import public_external_manifest as pem
+
+    review, sources = _build_review_tree(tmp_path, 5)
+    # First accept sample-000 so the demotion path (accepted -> quarantined)
+    # is exercised, then quarantine it along with sample-001.
+    export = tmp_path / "export"
+    export.mkdir()
+    (export / "sample-000.txt").write_text("0 0.5 0.5 0.9 0.9\n", encoding="utf-8")
+    rc = apply_labels(review / "candidates.jsonl", sources, export, None, dry_run=False)
+    assert rc == 0
+    assert summarize_review(review / "candidates.jsonl", sources).accepted == 1
+
+    rc = quarantine_records(
+        review / "candidates.jsonl", sources,
+        ("sample-000", "sample-001"), "UNREADABLE",
+        dry_run=False,
+    )
+    assert rc == 0
+
+    srcs = pem.load_source_registry(sources)
+    recs = pem.load_candidate_manifest(review / "candidates.jsonl", srcs)
+    by_id = {r.sample_id: r for r in recs}
+    for sid in ("sample-000", "sample-001"):
+        rec = by_id[sid]
+        assert rec.review_status == "quarantined"
+        assert rec.quarantine_reason == "UNREADABLE"
+        assert rec.annotation_status is None
+        assert rec.label_path is None
+        assert rec.accepted_classes == ()
+    # The audit must accept the quarantined state (reason set, annotation cleared).
+    audit = pem.audit_candidates(recs, sources=srcs, manifest_root=review)
+    assert audit.errors == ()
+
+
+def test_quarantine_applies_valid_but_reports_unknown_ids(tmp_path: Path) -> None:
+    review, sources = _build_review_tree(tmp_path, 3)
+
+    rc = quarantine_records(
+        review / "candidates.jsonl", sources, ("sample-000", "does-not-exist"),
+        "DEFECT_UNCLEAR", dry_run=False,
+    )
+
+    assert rc == 1  # unknown id -> non-zero exit
+    assert (review / "candidates.jsonl.bak").exists()  # valid id still applied
+    recs = [
+        json.loads(l)
+        for l in (review / "candidates.jsonl").open(encoding="utf-8")
+        if l.strip()
+    ]
+    by_id = {r["sample_id"]: r for r in recs}
+    assert by_id["sample-000"]["review_status"] == "quarantined"
+    assert by_id["sample-001"]["review_status"] == "review_required"  # untouched
+    assert len(recs) == 3  # manifest shape preserved
 
 
 def test_build_review_artifacts_enrich_and_render(tmp_path: Path) -> None:
