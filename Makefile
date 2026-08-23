@@ -9,11 +9,12 @@
 #   make apply LABEL_DIR=~/exports   # apply exported YOLO labels into candidates.jsonl
 #   make b0-check    # B0 gate checklist (exit 1 while blocked — expected)
 #   make b0-publish  # materialize versions/public-external-v0.1/ when ready
+#   make test        # run the toolkit test suite (override PYTHON if needed)
 
 PYTHON ?= python
 LOOP := bash tools/vision/fc_bga_yolo/review-loop.sh
 
-.PHONY: review-artifacts review-progress review-status apply b0-check b0-publish review
+.PHONY: review-artifacts review-progress review-status apply b0-check b0-publish review test
 
 review-artifacts:
 	$(LOOP) artifacts
@@ -39,3 +40,8 @@ b0-publish:
 ## Full refresh + check loop (does NOT publish):
 review: review-artifacts review-status
 	@echo "==> artifacts refreshed, progress shown; run 'make b0-check' for the gate checklist"
+
+## Run the toolkit test suite. Uses the Makefile PYTHON (override if you use the
+## managed interpreter, e.g. make test PYTHON=/path/to/python):
+test:
+	$(PYTHON) -m pytest tools/vision/fc_bga_yolo/tests -p no:cacheprovider -q
